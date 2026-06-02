@@ -2,6 +2,7 @@ import os
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 import cloudinary.uploader
 
@@ -24,9 +25,10 @@ def _serialize(qr):
 
 
 class QRCodeViewSet(ViewSet):
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        qrcodes = QRCode.objects.all().order_by('-created_at')
+        qrcodes = QRCode.objects.filter(user=request.user).order_by('-created_at')
         return Response([_serialize(q) for q in qrcodes])
 
     def create(self, request):
@@ -55,6 +57,7 @@ class QRCodeViewSet(ViewSet):
         )
 
         qr = QRCode.objects.create(
+            user=request.user,
             name=name,
             destination_url=destination_url,
             short_code=short,
@@ -66,11 +69,11 @@ class QRCodeViewSet(ViewSet):
         return Response(_serialize(qr), status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, pk=None):
-        qr = get_object_or_404(QRCode, pk=pk)
+        qr = get_object_or_404(QRCode, pk=pk, user=request.user)
         return Response(_serialize(qr))
 
     def partial_update(self, request, pk=None):
-        qr = get_object_or_404(QRCode, pk=pk)
+        qr = get_object_or_404(QRCode, pk=pk, user=request.user)
         qr.name = request.data.get('name', qr.name)
         qr.destination_url = request.data.get('destination_url', qr.destination_url)
         qr.fg_color = request.data.get('fg_color', qr.fg_color)
@@ -79,6 +82,6 @@ class QRCodeViewSet(ViewSet):
         return Response(_serialize(qr))
 
     def destroy(self, request, pk=None):
-        qr = get_object_or_404(QRCode, pk=pk)
+        qr = get_object_or_404(QRCode, pk=pk, user=request.user)
         qr.delete()
         return Response({'msg': 'deleted'}, status=status.HTTP_204_NO_CONTENT)
