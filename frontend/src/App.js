@@ -12,6 +12,62 @@ const CARD_GRADIENTS = [
   'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
 ];
 
+// ─── Live QR Preview ──────────────────────────────────────────────────────────
+function QRPreview({ fg, bg, cellSize = 4 }) {
+  const CELL = cellSize;
+  const N    = 21;
+  const W    = N * CELL;
+
+  const grid = Array(N).fill(null).map(() => Array(N).fill(0));
+
+  function drawFinder(r, c) {
+    for (let dr = 0; dr < 7; dr++) {
+      for (let dc = 0; dc < 7; dc++) {
+        const outer = dr === 0 || dr === 6 || dc === 0 || dc === 6;
+        const inner = dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4;
+        grid[r + dr][c + dc] = (outer || inner) ? 1 : 0;
+      }
+    }
+  }
+
+  drawFinder(0, 0);
+  drawFinder(0, 14);
+  drawFinder(14, 0);
+
+  for (let i = 8; i < 13; i++) {
+    grid[6][i] = i % 2 === 0 ? 1 : 0;
+    grid[i][6] = i % 2 === 0 ? 1 : 0;
+  }
+  grid[13][8] = 1;
+
+  const DATA = [
+    [1,0,1,0,1,1,0,1,0,0,1],[0,1,1,0,0,1,0,1,1,0,1],
+    [1,0,0,1,1,0,1,0,0,1,0],[1,1,0,1,0,0,1,1,0,1,1],
+    [0,0,1,0,1,1,0,0,1,0,1],[1,0,1,1,0,1,1,0,0,1,0],
+    [0,1,0,0,1,0,0,1,1,0,1],[1,1,1,0,1,1,0,1,0,1,0],
+  ];
+
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if ((r < 8 && c < 8) || (r < 8 && c > 13) || (r > 13 && c < 8)) continue;
+      if (r === 6 || c === 6) continue;
+      if (grid[r][c] !== 0) continue;
+      grid[r][c] = DATA[r % 8][c % 11];
+    }
+  }
+
+  return (
+    <svg width={W} height={W} viewBox={`0 0 ${W} ${W}`} style={{ display: 'block', borderRadius: 6 }}>
+      <rect width={W} height={W} fill={bg} />
+      {grid.map((row, r) =>
+        row.map((val, c) =>
+          val ? <rect key={`${r}-${c}`} x={c * CELL} y={r * CELL} width={CELL} height={CELL} fill={fg} /> : null
+        )
+      )}
+    </svg>
+  );
+}
+
 function getToken()    { return localStorage.getItem('token'); }
 function getUsername() { return localStorage.getItem('username') || 'there'; }
 
@@ -291,8 +347,9 @@ function MainApp({ onLogout }) {
             </div>
           </div>
 
-          <form onSubmit={handleCreate} className="create-form">
-            <div className="form-row">
+          <div className="create-layout">
+            {/* Form side */}
+            <form onSubmit={handleCreate} className="create-form">
               <div className="form-group">
                 <label>Campaign / Label <span className="req">*</span></label>
                 <input
@@ -311,39 +368,54 @@ function MainApp({ onLogout }) {
                   required
                 />
               </div>
+              <div className="form-row colors-row">
+                <div className="form-group">
+                  <label>QR Color</label>
+                  <div className="color-pick">
+                    <input type="color" value={form.fg_color} onChange={e => setForm(f => ({ ...f, fg_color: e.target.value }))} />
+                    <span className="color-hex">{form.fg_color}</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Background</label>
+                  <div className="color-pick">
+                    <input type="color" value={form.bg_color} onChange={e => setForm(f => ({ ...f, bg_color: e.target.value }))} />
+                    <span className="color-hex">{form.bg_color}</span>
+                  </div>
+                </div>
+              </div>
+              {error && <p className="form-alert form-alert-error">{error}</p>}
+              <button className="btn btn-primary btn-generate" type="submit" disabled={creating}>
+                {creating
+                  ? <><span className="btn-spinner" /> Generating…</>
+                  : '⚡ Generate QR Code'}
+              </button>
+            </form>
+
+            {/* Preview side */}
+            <div className="preview-side">
+              <div className="preview-panel">
+                <span className="preview-pill">Live Preview</span>
+                <div className="preview-qr-wrap">
+                  <QRPreview fg={form.fg_color} bg={form.bg_color} cellSize={7} />
+                </div>
+                <div className="preview-info">
+                  <p className="preview-name">
+                    {form.name || <span className="preview-placeholder">Campaign name</span>}
+                  </p>
+                  <div className="preview-swatches">
+                    <span className="preview-swatch" style={{ background: form.fg_color }} title="QR Color" />
+                    <span className="preview-swatch preview-swatch-bg" style={{ background: form.bg_color }} title="Background" />
+                  </div>
+                  <p className="preview-dest">
+                    {form.destination_url
+                      ? (form.destination_url.length > 30 ? form.destination_url.slice(0, 30) + '…' : form.destination_url)
+                      : <span className="preview-placeholder">Destination URL</span>}
+                  </p>
+                </div>
+              </div>
             </div>
-
-            <div className="form-row colors-row">
-              <div className="form-group">
-                <label>QR Color</label>
-                <div className="color-pick">
-                  <input type="color" value={form.fg_color} onChange={e => setForm(f => ({ ...f, fg_color: e.target.value }))} />
-                  <span className="color-hex">{form.fg_color}</span>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Background</label>
-                <div className="color-pick">
-                  <input type="color" value={form.bg_color} onChange={e => setForm(f => ({ ...f, bg_color: e.target.value }))} />
-                  <span className="color-hex">{form.bg_color}</span>
-                </div>
-              </div>
-              <div className="form-group preview-group">
-                <label>Preview</label>
-                <div className="color-preview-box" style={{ background: form.bg_color }}>
-                  <div className="color-preview-dot" style={{ background: form.fg_color }} />
-                </div>
-              </div>
-            </div>
-
-            {error && <p className="form-alert form-alert-error">{error}</p>}
-
-            <button className="btn btn-primary btn-generate" type="submit" disabled={creating}>
-              {creating
-                ? <><span className="btn-spinner" /> Generating…</>
-                : '⚡ Generate QR Code'}
-            </button>
-          </form>
+          </div>
         </div>
 
         {/* ── Library ── */}
